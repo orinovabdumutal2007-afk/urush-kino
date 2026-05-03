@@ -1,0 +1,116 @@
+import telebot
+from telebot import types
+
+# --- ASOSIY SOZLAMALAR ---
+# Token va ID larni o'zgartirmasdan saqlang
+TOKEN = '8735644958:AAHBhZo0mDiDqamaW96S_DJQJ0ct2FF6-sc'
+ADMIN_ID = 6655098949
+CHANNEL_ID = -1002447952136  # Kanalning raqamli ID si
+PRIVATE_LINK = "https://t.me/+FiSw2naU1_oyY2Uy" # Kirish so'rovi uchun link
+
+bot = telebot.TeleBot(TOKEN)
+
+# --- FUNKSIYALAR ---
+
+def check_sub(user_id):
+    """Foydalanuvchi kanalga so'rov yuborgan yoki a'zo ekanini tekshiradi"""
+    try:
+        member = bot.get_chat_member(CHANNEL_ID, user_id)
+        # Agar a'zo bo'lsa yoki admin bo'lsa True qaytaradi
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
+    except Exception as e:
+        # Xatolik bo'lsa (masalan bot admin bo'lmasa) False qaytaradi
+        print(f"Xatolik: {e}")
+        return False
+
+# --- START KOMANDASI ---
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.from_user.id
+    
+    if check_sub(user_id):
+        # OBUNA BO'LGANLAR UCHUN ASOSIY MENYU
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        btn_search = types.InlineKeyboardButton("🔍 Kino qidirish", callback_data="search_kino")
+        btn_genres = types.InlineKeyboardButton("📂 Janrlar", callback_data="show_genres")
+        markup.add(btn_search, btn_genres)
+        
+        if user_id == ADMIN_ID:
+            markup.add(types.InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
+            
+        bot.send_message(message.chat.id, f"Salom {message.from_user.first_name}! Botdan foydalanishingiz mumkin. 👇", reply_markup=markup)
+    else:
+        # OBUNA BO'LMAGANLAR UCHUN "1-KANAL" BLOKIROVKASI
+        markup = types.InlineKeyboardMarkup()
+        btn_link = types.InlineKeyboardButton("📢 1-kanal (So'rov yuboring)", url=PRIVATE_LINK)
+        btn_check = types.InlineKeyboardButton("✅ Tekshirish", callback_data="check_subscription")
+        markup.add(btn_link)
+        markup.add(btn_check)
+        
+        bot.send_message(message.chat.id, "Botni ishga tushirish uchun kanalga so'rov yuboring va 'Tekshirish' tugmasini bosing! 🔐", reply_markup=markup)
+
+# --- TUGMALAR ISHLASHI (CALLBACK) ---
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    user_id = call.from_user.id
+    
+    if call.data == "check_subscription":
+        if check_sub(user_id):
+            bot.answer_callback_query(call.id, "Tabriklaymiz! Endi botdan foydalanishingiz mumkin. ✅")
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            start(call.message)
+        else:
+            bot.answer_callback_query(call.id, "Siz hali so'rov yubormadingiz yoki so'rovingiz tasdiqlanmadi! ❌", show_alert=True)
+            
+    elif call.data == "search_kino":
+        bot.send_message(call.message.chat.id, "Kino kodini yuboring:")
+
+    elif call.data == "admin_panel" and user_id == ADMIN_ID:
+        markup = types.InlineKeyboardMarkup()
+        btn_poll = types.InlineKeyboardButton("📊 10k haqida so'rovnoma", callback_data="send_poll")
+        markup.add(btn_poll)
+        bot.send_message(call.message.chat.id, "Admin panel:", reply_markup=markup)
+
+    elif call.data == "send_poll" and user_id == ADMIN_ID:
+        bot.send_poll(
+            call.message.chat.id, 
+            "Kanalni 10k bo'lganda sotaylikmi?", 
+            ["Ha, soting ✅", "Yo'q, sotmang ❌"], 
+            is_anonymous=False
+        )
+
+# --- MATNLI XABARLAR (KINO KODLARI) ---
+
+@bot.message_handler(func=lambda message: True)
+def handle_text(message):
+    user_id = message.from_user.id
+    
+    if check_sub(user_id):
+        # Kino kodlarini tekshirish
+        if message.text == "101":
+            bot.reply_to(message, f"🎬 'Forsaj 10' filmi: {PRIVATE_LINK}")
+        elif message.text == "777":
+            bot.reply_to(message, f"🎬 'Fight Club' filmi: {PRIVATE_LINK}")
+        else:
+            bot.reply_to(message, "Kino topilmadi. Kodni to'g'ri kiriting. 😔")
+    else:
+        # Obuna bo'lmagan bo'lsa start menyusiga qaytaradi
+        start(message)
+
+# --- SO'ROVLARNI AVTOMAT QABUL QILISH ---
+
+@bot.chat_join_request_handler()
+def handle_join_request(request):
+    try:
+        bot.approve_chat_join_request(request.chat.id, request.from_user.id)
+        bot.send_message(request.from_user.id, "So'rovingiz tasdiqlandi! Botdan foydalanishingiz mumkin. 🚀")
+    except Exception as e:
+        print(f"Xato: {e}")
+
+# --- BOTNI YURGIZISH ---
+bot.infinity_polling(none_stop=True)
+      
