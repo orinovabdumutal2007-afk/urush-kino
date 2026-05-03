@@ -114,3 +114,20 @@ def handle_join_request(request):
 # --- BOTNI YURGIZISH ---
 bot.infinity_polling(none_stop=True)
       
+async def check_sub(user_id):
+    for channel in CHANNELS:
+        try:
+            # Kanal nomini @ belgisiz ham, bilan ham qabul qilish uchun
+            chat_id = channel if channel.startswith("@") else f"@{channel}"
+            member = await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+            
+            # Agar foydalanuvchi quyidagi statuslarda bo'lmasa, demak u a'zo emas
+            # 'member', 'administrator', 'creator' - bular a'zolikni bildiradi
+            if member.status not in ["member", "administrator", "creator"]:
+                return False
+        except Exception as e:
+            print(f"Xatolik yuz berdi: {e}")
+            # Agar bot admin bo'lmasa yoki kanal topilmasa ham False qaytaradi
+            return False
+    return True
+        
